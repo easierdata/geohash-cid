@@ -1,2 +1,3 @@
 # Geohash + CID
-Validation of geohash over geospatial dataset.
+Enable spatial indexing in IPFS ecosystem.
+[What is geohash?](https://www.educative.io/answers/what-is-geohash)

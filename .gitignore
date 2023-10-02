@@ -1,8 +1,15 @@
+#file system
+.DS_Store
+
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.ipynb_checkpoints
 
 # Virtual environment
 venv/
+
+#data
+data
