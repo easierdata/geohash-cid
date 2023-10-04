@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "geohash-cid"
+version = "0.1.0"
+description = "toolkit for spatial indexing in IPFS"
+authors = ["Zheng Liu <zliu1208@umd.edu>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+geopandas = "^0.14.0"
+pygeohash = "^1.2.0"
+psycopg2-binary = "^2.9.9"
+ipfs-stac = "^0.1.12"
+jupyter = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+autopep8 = "^2.0.4"
+flake8 = "^6.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
