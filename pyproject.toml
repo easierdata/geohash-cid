@@ -8,10 +8,13 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.9"
 geopandas = "^0.14.0"
-pygeohash = "^1.2.0"
 psycopg2-binary = "^2.9.9"
 ipfs-stac = "^0.1.12"
 jupyter = "^1.0.0"
+pygeohash = {git = "git@github.com:wdm0006/pygeohash.git"}
+leafmap = "^0.27.0"
+sqlalchemy = "^2.0.21"
+geoalchemy2 = "^0.14.1"
 
 [tool.poetry.group.dev.dependencies]
 autopep8 = "^2.0.4"
