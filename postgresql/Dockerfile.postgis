@@ -1,0 +1,7 @@
+# Use the official PostgreSQL image as a base
+FROM postgres:13
+
+# Install PostGIS
+RUN apt-get update \
+    && apt-get install -y postgresql-13-postgis-3 \
+    && rm -rf /var/lib/apt/lists/*
