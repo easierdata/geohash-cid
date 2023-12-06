@@ -15,6 +15,7 @@ pygeohash = {git = "git@github.com:wdm0006/pygeohash.git"}
 leafmap = "^0.27.0"
 sqlalchemy = "^2.0.21"
 geoalchemy2 = "^0.14.1"
+contextily = "^1.4.0"
 
 [tool.poetry.group.dev.dependencies]
 autopep8 = "^2.0.4"
