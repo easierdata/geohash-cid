@@ -3,9 +3,44 @@ import geopandas as gpd
 import pandas as pd
 import pygeohash as pgh
 import ast
+import os
 from .trie import Trie
 from .util import merge_dict,compose_path
-from .filesystem import get_geojson_path_from_cid
+from .filesystem import *
+
+def append_geohash_to_dataframe(df):
+    """
+    Append geohash to a dataframe
+    """
+    df = pd.concat([df,df.get_coordinates()],axis=1)
+    df['geohash'] = df.apply(lambda row: pgh.encode(row['y'], row['x'],precision=6), axis=1)
+    return df
+
+def splitting_dataframe_to_files(df, target_directory,bucket_size = 1):
+    # Initialize an empty list to store file paths
+    file_paths = []
+    if bucket_size == 1:
+        # Loop through each row in GeoDataFrame
+        for index, row in df.iterrows():
+            # Slice the GeoDataFrame to get a single feature (row)
+            single_feature_gdf = df.iloc[[index]]
+
+            # Get 'osm_id' for the single feature
+            osm_id = row['osm_id']
+
+            # Define the full file path
+            file_path = os.path.join(target_directory, f"{osm_id}.geojson")
+
+            # Save single feature GeoDataFrame as GeoJSON
+            single_feature_gdf.to_file(file_path, driver="GeoJSON")
+
+            # Append file_path to list
+            file_paths.append(file_path)
+
+        # Create a new column in the original GeoDataFrame to store file paths
+        df['single_path'] = file_paths
+
+    return df
 class GeohashTree(ABC):
     @abstractmethod
     def add_from_geojson(self, geojson):
@@ -20,21 +55,80 @@ class GeohashTree(ABC):
         pass
 
 class LiteTreeCID(GeohashTree):
-    def add_from_geojson(self, geojson):
-        # Implementation specific to Backend1
-        pass
+    def add_from_geojson(self, geojson, target_directory):
+        """
+        Add a GeoJSON file to the index tree
+        """
+        features = gpd.read_file(geojson)
+        features = append_geohash_to_dataframe(features)
+        features = splitting_dataframe_to_files(features, target_directory,bucket_size = 1)
+        features['single_cid'] = features.apply(lambda x: compute_cid(x['single_path']),axis=1)
+        pairs = list(zip(features['geohash'],features['single_cid']))
+        # Create an empty Trie dictionary
+        self.trie_dict = Trie()
+        # Insert each index-value pair into the Trie dictionary
+        for index, value in pairs:
+            self.trie_dict.insert(index, value)
 
-    def generate_tree_index(self):
-        # Implementation specific to Backend1
-        pass
+    def generate_tree_index(self,destination_path):
+        # Implementation specific to Backend2
+        self.export_trie(self.trie_dict.root,"",destination_path)
+    def process_leaf_node(self,leaf):
+        """
+        process index leaf.
+        leaf: txt file path of a index leaf, like a//ab/abc.txt
+        """
+        with open(leaf, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+        return [line.strip() for line in lines]
 
-    def query(self, lat, lon, radius):
-        # Implementation specific to Backend1
-        pass
-
+    def traverse_sub_node(self,node):
+        """
+        recursively collect all the leaf node under the current node
+        """
+        import os
+        
+        results=[]
+        excludes = [".ipynb_checkpoints"]
+        # Get list of items in the directory
+        subfolders = [d for d in os.listdir(node) if os.path.isdir(os.path.join(node, d)) and d not in excludes]
+        # If there are subfolders, traverse them
+        if subfolders:
+            for subfolder in subfolders:
+                results.extend(self.traverse_sub_node(os.path.join(node, subfolder)))
+        else:
+            # Otherwise, process txt files in the directory
+            txt_files = [f for f in os.listdir(node) if f.endswith('.txt')]
+            for txt_file in txt_files:
+                results.extend(self.process_leaf_node(os.path.join(node, txt_file)))
+        return results
+    def query_single(self,geohash,index_root):
+        """
+        find matching geohash or sub-level hashs
+        """
+        import os
+        target_path = compose_path(geohash,index_root)
+        cid_list = []
+        if os.path.exists(target_path):
+            cid_list = self.traverse_sub_node(target_path)
+        if os.path.exists(target_path+'.txt'):
+            cid_list = self.process_leaf_node(target_path+'.txt')
+        return cid_list
+    def query(self, geohashes,index_root):
+        results = []
+        for nei in geohashes:
+            query = self.query_single(nei,index_root)
+            if query:
+                results.extend(query)
+        return results
+    def retrieve(self,geohashes,index_root):
+        results = self.query(geohashes,index_root)
+        ipfs_retrieval = pd.concat([ipfs_get_feature(cid) for cid in results])
+        return ipfs_retrieval
+    
 class LiteTreeOffset(GeohashTree):
 
-    def calculate_offsets_and_lengths_stream(geojson_file_path):
+    def calculate_offsets_and_lengths_stream(self,geojson_file_path):
         offsets_and_lengths = []
         feature_start_token = '"type": "Feature"'
 
@@ -70,32 +164,18 @@ class LiteTreeOffset(GeohashTree):
 
         return offsets_and_lengths
     
-    def extract_and_concatenate(file_path, chunks, suffix_string = "]\n}"):
-        concatenated_data = ""
-        with open(file_path, 'r') as file:
-            res = []
-            for i, (offset, length) in enumerate(chunks):
-                file.seek(offset)
-                data = file.read(length)
-                # Remove trailing comma from the second chunk
-                
-                data = data.rstrip(',\n')
-                res.append(data)
-            
-            concatenated_data += res[0]+",".join(res[1:])
-
-        concatenated_data += suffix_string
-        return concatenated_data
+    
     
     def export_trie(self,trie_node,geohash,root_path):
         #export geojson at current hash level
         next_path = root_path+"/"+"".join(geohash)
         leaf_path = root_path+f"/{geohash}.txt"
         print(geohash,root_path,next_path,leaf_path)
+        cid = self.CID if self.CID else "[CID placeholder]"
         if trie_node.value:
             # Open a file in write mode
             with open(leaf_path, 'w') as f:
-                f.write(f"[CID placeholder]\n{self.head_offset_length}\n")
+                f.write(f"{cid}\n{self.head_offset_length}\n")
                 for item in trie_node.value:
                     f.write(f"{item}\n")
         #make path and export to sub folder
@@ -111,15 +191,14 @@ class LiteTreeOffset(GeohashTree):
         features = gpd.read_file(geojson)
         features['offlen'] = offsets_lengths
         self.head_offset_length = (0,offsets_lengths[0][0])
-        features = pd.concat([features,features.get_coordinates()],axis=1)
-        features['geohash'] = features.apply(lambda row: pgh.encode(row['y'], row['x'],precision=6), axis=1)
+        features = append_geohash_to_dataframe(features)
         pairs = list(zip(features['geohash'],features['offlen']))
         # Create an empty Trie dictionary
         self.trie_dict = Trie()
-
         # Insert each index-value pair into the Trie dictionary
         for index, value in pairs:
             self.trie_dict.insert(index, value)
+        self.CID = compute_cid(geojson)
 
     def generate_tree_index(self,destination_path):
         # Implementation specific to Backend2
@@ -177,14 +256,16 @@ class LiteTreeOffset(GeohashTree):
                 results = merge_dict(results,query)
         return results
     def retrieve(self,geohashes,index_root):
-        results = self.query(geohashes,index_root)
-        for cid in results:
-            geojson_path = get_geojson_path_from_cid(cid)
-            offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(results[cid])]
+        query_ret = self.query(geohashes,index_root)
+        results = []
+        for cid in query_ret:
+            offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
             print(len(offset_list))
-            geojson = self.extract_and_concatenate(geojson_path, offset_list, suffix_string = "]\n}")
-            with open(f'result_{cid}.geojson', 'w') as of:
-                of.write(geojson)
+            geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
+            results.append(gpd.read_file(geojson))
+
+        return pd.concat(results)
+        
 
 class FullTreeFile(GeohashTree):
     def add_from_geojson(self, geojson):
