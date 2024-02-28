@@ -14,4 +14,3 @@ def compose_path(s:str,root:str) -> str:
         path.append(s[:i+1])
     return "/".join(path)
 
-

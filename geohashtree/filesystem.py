@@ -34,7 +34,7 @@ def extract_and_concatenate_from_ipfs(cid, chunks, suffix_string = "]\n}"):
     concatenated_data = ""
     res = []
     for i, (offset, length) in enumerate(chunks):
-        result = subprocess.run(["ipfs","cat",cid,"-o",offset,"-l",length],stdout=subprocess.PIPE)
+        result = subprocess.run(["ipfs","cat",cid,"-o",str(offset),"-l",str(length)],stdout=subprocess.PIPE)
         data = result.stdout.decode()
         # Remove trailing comma from the second chunk
         data = data.rstrip(',\n')
@@ -44,6 +44,9 @@ def extract_and_concatenate_from_ipfs(cid, chunks, suffix_string = "]\n}"):
     concatenated_data += suffix_string
     return concatenated_data
 
+def write_raw_json_to_file(geojson, file_path):
+    with open(file_path, 'w') as file:
+        file.write(geojson)
 def ipfs_ready():
     """
     Check if IPFS is ready
@@ -58,6 +61,7 @@ def compute_cid(file_path):
     if not ipfs_ready():
         raise Exception("IPFS is not ready")
     cid = subprocess.check_output(["ipfs", "add", "-qn","--cid-version=1", file_path]).decode().strip()
+    print(cid)
     return cid
 def ipfs_add_feature(geojson_path):
     """
@@ -66,6 +70,8 @@ def ipfs_add_feature(geojson_path):
     if not ipfs_ready():
         raise Exception("IPFS is not ready")
     try:
+        if isinstance(geojson_path, list):
+            return [ipfs_add_feature(geojson) for geojson in geojson_path]
         # Use IPFS add command to add the file to IPFS
         result = subprocess.run(['ipfs', 'add', '-q', '--cid-version=1', geojson_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
@@ -80,25 +86,86 @@ def ipfs_add_index_folder(index_path):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS add command to add the file to IPFS
-        result = subprocess.run(['ipfs', 'add', '-r', '-q', '--cid-version=1', index_path], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run(['ipfs', 'add', '-r', '--cid-version=1', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+def ipfs_list_folder(cid):
+    """
+    List the contents of an IPFS folder
+    """
+    if not ipfs_ready():
+        raise Exception("IPFS is not ready")
+    try:
+        # Use IPFS ls command to list the CID
+        result = subprocess.run(['ipfs', 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
+        return [row.split(" ")[-1] for row in result.stdout.strip().split('\n')]   
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+def ipfs_check_folder(cid):
+    """
+    Check if a CID is a folder on IPFS
+    """
+    if not ipfs_ready():
+        raise Exception("IPFS is not ready")
+    try:
+        # Use IPFS ls command to list the CID
+        result = subprocess.run(['ipfs', 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
+        if result.stdout.strip() == "":
+            return False
+        else:
+            return True
+    except Exception as e:
+        return False
+def ipfs_link_exists(cid):
+    """
+    Check if a CID exists on IPFS
+    """
+    if not ipfs_ready():
+        raise Exception("IPFS is not ready")
+    try:
+        # Use IPFS ls command to list the CID
+        result = subprocess.run(['ipfs', 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
+        return True
+    except subprocess.CalledProcessError as e:
+        return False
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return False
 
+def ipfs_cat_file(cid):
+    """
+    Retrieve a file from IPFS using its CID
+    """
+    if not ipfs_ready():
+        raise Exception("IPFS is not ready")
+    try:
+        # Use IPFS cat command to stream the file content
+        result = subprocess.run(['ipfs', 'cat', cid], stdout=subprocess.PIPE, check=True, text=True)
+        return result.stdout
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
 def ipfs_get_feature(cid):
     """
     Retrieve a GeoJSON feature from IPFS using its CID
     """
+    cat_string = ipfs_cat_file(cid)
+    if cat_string:
+        return gpd.read_file(StringIO(cat_string))
+    else:
+        return None
+
+def ipfs_get_index_folder(cid,index_path):
+    """
+    Retrieve an index folder from IPFS using its CID
+    """
     if not ipfs_ready():
         raise Exception("IPFS is not ready")
-    
     try:
-        # Use IPFS cat command to stream the file content
-        result = subprocess.run(['ipfs', 'cat', cid], stdout=subprocess.PIPE, check=True, text=True)
-        # Use StringIO to convert string to a file-like object for pandas
-        json_content = StringIO(result.stdout)
-        # Load the JSON content into a DataFrame
-        gdf = gpd.read_file(json_content)
-        return gdf
+        # Use IPFS get command to retrieve the folder and save to index path
+        result = subprocess.run(['ipfs', 'get', cid, '-o', index_path], stdout=subprocess.PIPE, check=True, text=True)
+        return result.stdout
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        return None
