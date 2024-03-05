@@ -19,7 +19,7 @@ def extract_and_concatenate(file_path, chunks, suffix_string = "]\n}"):
         res = []
         for i, (offset, length) in enumerate(chunks):
             file.seek(offset)
-            data = file.read(length)
+            data = file.read(length).decode()
             # Remove trailing comma from the second chunk
             
             data = data.rstrip(',\n')
