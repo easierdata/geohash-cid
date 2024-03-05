@@ -77,7 +77,6 @@ class LiteTreeCID(GeohashTree):
         #export geojson at current hash level
         next_path = root_path+"/"+"".join(geohash)
         leaf_path = root_path+f"/{geohash}.txt"
-        print(geohash,root_path,next_path,leaf_path)
         if trie_node.value:
             # Open a file in write mode
             with open(leaf_path, 'w') as f:
@@ -193,7 +192,6 @@ class LiteTreeOffset(GeohashTree):
         #export geojson at current hash level
         next_path = root_path+"/"+"".join(geohash)
         leaf_path = root_path+f"/{geohash}.txt"
-        print(geohash,root_path,next_path,leaf_path)
         cid = self.CID if self.CID else "[CID placeholder]"
         if trie_node.value:
             # Open a file in write mode

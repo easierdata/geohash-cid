@@ -5,7 +5,8 @@ import subprocess
 import pandas as pd
 import geopandas as gpd
 from io import StringIO
-
+from geohashtree.config import ipfs_binary
+print('ipfs path',ipfs_binary)
 def get_geojson_path_from_cid(cid):
     """
     Get the geojson file from the CID
@@ -34,7 +35,7 @@ def extract_and_concatenate_from_ipfs(cid, chunks, suffix_string = "]\n}"):
     concatenated_data = ""
     res = []
     for i, (offset, length) in enumerate(chunks):
-        result = subprocess.run(["ipfs","cat",cid,"-o",str(offset),"-l",str(length)],stdout=subprocess.PIPE)
+        result = subprocess.run([ipfs_binary,"cat",cid,"-o",str(offset),"-l",str(length)],stdout=subprocess.PIPE)
         data = result.stdout.decode()
         # Remove trailing comma from the second chunk
         data = data.rstrip(',\n')
@@ -51,7 +52,7 @@ def ipfs_ready():
     """
     Check if IPFS is ready
     """
-    result = subprocess.run(["ipfs","swarm","addrs"],stdout=subprocess.PIPE)
+    result = subprocess.run([ipfs_binary,"swarm","addrs"],stdout=subprocess.PIPE)
     return not result.returncode
 
 def compute_cid(file_path):
@@ -60,7 +61,7 @@ def compute_cid(file_path):
     """
     if not ipfs_ready():
         raise Exception("IPFS is not ready")
-    cid = subprocess.check_output(["ipfs", "add", "-qn","--cid-version=1", file_path]).decode().strip()
+    cid = subprocess.check_output([ipfs_binary, "add", "-qn","--cid-version=1", file_path]).decode().strip()
     print(cid)
     return cid
 def ipfs_add_feature(geojson_path):
@@ -73,7 +74,7 @@ def ipfs_add_feature(geojson_path):
         if isinstance(geojson_path, list):
             return [ipfs_add_feature(geojson) for geojson in geojson_path]
         # Use IPFS add command to add the file to IPFS
-        result = subprocess.run(['ipfs', 'add', '-q', '--cid-version=1', geojson_path], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'add', '-q', '--cid-version=1', geojson_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
@@ -86,7 +87,7 @@ def ipfs_add_index_folder(index_path):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS add command to add the file to IPFS
-        result = subprocess.run(['ipfs', 'add', '-r', '--cid-version=1', index_path], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'add', '-r', '--cid-version=1', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
@@ -98,7 +99,7 @@ def ipfs_list_folder(cid):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS ls command to list the CID
-        result = subprocess.run(['ipfs', 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
         return [row.split(" ")[-1] for row in result.stdout.strip().split('\n')]   
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
@@ -110,7 +111,7 @@ def ipfs_check_folder(cid):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS ls command to list the CID
-        result = subprocess.run(['ipfs', 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
         if result.stdout.strip() == "":
             return False
         else:
@@ -125,7 +126,7 @@ def ipfs_link_exists(cid):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS ls command to list the CID
-        result = subprocess.run(['ipfs', 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
         return True
     except subprocess.CalledProcessError as e:
         return False
@@ -141,7 +142,7 @@ def ipfs_cat_file(cid):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS cat command to stream the file content
-        result = subprocess.run(['ipfs', 'cat', cid], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'cat', cid], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
@@ -164,7 +165,7 @@ def ipfs_get_index_folder(cid,index_path):
         raise Exception("IPFS is not ready")
     try:
         # Use IPFS get command to retrieve the folder and save to index path
-        result = subprocess.run(['ipfs', 'get', cid, '-o', index_path], stdout=subprocess.PIPE, check=True, text=True)
+        result = subprocess.run([ipfs_binary, 'get', cid, '-o', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
