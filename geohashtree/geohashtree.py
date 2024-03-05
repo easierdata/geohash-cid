@@ -180,7 +180,7 @@ class LiteTreeOffset(GeohashTree):
 
                 # When the braces balance out, we've found the end of the feature
                 if feature_start is not None and brace_count == 0:
-                    feature_end = current_position + len(line)
+                    feature_end = current_position + len(line.encode())
                     offsets_and_lengths.append((feature_start, feature_end - feature_start))
                     feature_start = None
 
