@@ -36,7 +36,7 @@ def geohashes_covering_rectangle(min_lon,max_lon,min_lat,max_lat,precision):
             if rect_overlap(*bounding_box(nei),min_lon,max_lon,min_lat,max_lat):
                 queue.append(nei)
     return list(visited.keys())
-def geohashes_covering_circle(xc,yc,radius,precision):
+def geohashes_covering_circle(xc,yc,radius,precision,distance_type='eculidean'):
     cgh = pgh.encode(latitude=yc, longitude=xc, precision=precision)
     visited = {}
     queue = [cgh]
@@ -48,7 +48,7 @@ def geohashes_covering_circle(xc,yc,radius,precision):
         directions = ["top","right","bottom","left"]
         for dir in directions:
             nei = pgh.get_adjacent(p,dir)
-            if not rect_outside_a_circle(*bounding_box(nei),xc,yc,radius):
+            if not rect_outside_a_circle(*bounding_box(nei),xc,yc,radius,distance_type):
                 queue.append(nei)
 
     return list(visited.keys())

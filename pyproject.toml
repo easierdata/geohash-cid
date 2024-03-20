@@ -17,6 +17,12 @@ sqlalchemy = "^2.0.21"
 geoalchemy2 = "^0.14.1"
 contextily = "^1.4.0"
 py-multiformats-cid = "^0.4.4"
+seaborn = "^0.13.2"
+pyarrow = "^15.0.1"
+pyrosm = "^0.6.2"
+psutil = "^5.9.8"
+ipyleaflet = "^0.18.2"
+ipywidgets = "^8.1.2"
 
 [tool.poetry.group.dev.dependencies]
 autopep8 = "^2.0.4"

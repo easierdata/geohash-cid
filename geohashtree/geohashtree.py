@@ -13,7 +13,7 @@ def append_geohash_to_dataframe(df):
     Append geohash to a dataframe
     """
     df = pd.concat([df,df.get_coordinates()],axis=1)
-    df['geohash'] = df.apply(lambda row: pgh.encode(row['y'], row['x'],precision=6), axis=1)
+    df['geohash'] = df.apply(lambda row: pgh.encode(row['y'], row['x'],precision=4), axis=1)
     return df
 
 def splitting_dataframe_to_files(df, target_directory,bucket_size = 1):
@@ -149,11 +149,32 @@ class LiteTreeCID(GeohashTree):
 class LiteTreeOffset(GeohashTree):
     def __init__(self,mode="offline"):
         self.mode = mode
+        self.fs = InterPlanetaryFS() if mode == "online" else LocalFS()
         print(f"Index Mode: {mode}")
+        self.offsets = []
     def calculate_offsets_and_lengths_stream(self,geojson_file_path):
+        def count_char_outside_quotes(line, char):
+            count = 0
+            in_quotes = False
+            escape_next = False  # Track whether the next character is escaped
+            
+            for c in line:
+                # If the current character is a backslash and escape_next is False, toggle escape_next
+                if c == '\\' and not escape_next:
+                    escape_next = True
+                    continue
+                elif c == '\"' and not escape_next:
+                    # Toggle in_quotes if not preceded by an unescaped backslash
+                    in_quotes = not in_quotes
+                elif c == char and not in_quotes:
+                    # Count the char if it's not inside quotes
+                    count += 1
+                escape_next = False if escape_next else escape_next  # Reset escape_next if it was True
+            
+            return count
         offsets_and_lengths = []
         feature_start_token = '"type": "Feature"'
-
+        
         with open(geojson_file_path, 'r') as file:
             feature_start = None
             brace_count = 0
@@ -175,8 +196,8 @@ class LiteTreeOffset(GeohashTree):
 
                 # Count braces to find the end of the feature
                 if feature_start is not None:
-                    brace_count += line.count('{')
-                    brace_count -= line.count('}')
+                    brace_count += count_char_outside_quotes(line,'{')
+                    brace_count -= count_char_outside_quotes(line,'}')
 
                 # When the braces balance out, we've found the end of the feature
                 if feature_start is not None and brace_count == 0:
@@ -230,11 +251,7 @@ class LiteTreeOffset(GeohashTree):
         process index leaf. [TODO]
         leaf: txt file path of a index leaf, like a//ab/abc.txt
         """
-        if self.mode == "online":
-            lines = ipfs_cat_file(leaf).split("\n")
-        else:
-            with open(leaf, 'r', encoding='utf-8') as file:
-                lines = file.readlines()
+        lines = self.fs.readlines(leaf)
         return {lines[0].strip():[line.strip() for line in lines[1:] if line.strip()] }
 
     def traverse_sub_node(self,node):
@@ -242,20 +259,17 @@ class LiteTreeOffset(GeohashTree):
         recursively collect all the leaf node under the current node
         """
         import os
-        list_folder_func = ipfs_list_folder if self.mode == "online" else os.listdir
-        folder_exists_func = ipfs_check_folder if self.mode == "online" else os.path.isdir
-        file_exists_func = ipfs_link_exists if self.mode == "online" else os.path.exists
         results={}
         excludes = [".ipynb_checkpoints"]
         # Get list of items in the directory
-        subfolders = [d for d in list_folder_func(node) if folder_exists_func(os.path.join(node, d)) and d not in excludes]
+        subfolders = [d for d in self.fs.listdir(node) if self.fs.path_isdir(os.path.join(node, d)) and d not in excludes]
         # If there are subfolders, traverse them
         if subfolders:
             for subfolder in subfolders:
                 results = merge_dict(results,self.traverse_sub_node(os.path.join(node, subfolder)))
         else:
             # Otherwise, process txt files in the directory
-            txt_files = [f for f in list_folder_func(node) if f.endswith('.txt')]
+            txt_files = [f for f in self.fs.listdir(node) if f.endswith('.txt')]
             for txt_file in txt_files:
                 results = merge_dict(results,self.process_leaf_node(os.path.join(node, txt_file)))
         return results
@@ -266,7 +280,7 @@ class LiteTreeOffset(GeohashTree):
         query a single geohash
         """
         import os
-        file_exists_func = ipfs_link_exists if self.mode == "online" else os.path.exists
+        file_exists_func = self.fs.path_exists
         target_path = compose_path(geohash,index_root)
         cid_dict = {}
         if file_exists_func(target_path):
@@ -288,18 +302,28 @@ class LiteTreeOffset(GeohashTree):
         query_ret = self.query(geohashes,index_root)
         return sum([len(query_ret[cid])-1 for cid in query_ret]) if query_ret else 0
     def retrieve(self,geohashes,index_root):
+        from time import time
+        t0 = time()
         query_ret = self.query(geohashes,index_root)
+        t1 = time()
         results = []
         for cid in query_ret:
             offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
             print(len(offset_list))
+            self.offsets = offset_list
             geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
             results.append(gpd.read_file(geojson))
-
-        return pd.concat(results)
+        t2 = time()
+        print(t1-t0,t2-t1)
+        ret = pd.concat(results)
+        return ret
         
 
 class FullTreeFile(GeohashTree):
+
+    def __init__(self):
+        self.fs = InterPlanetaryFS()
+        
     def add_from_geojson(self, geojson):
         """
         Add a GeoJSON file to the index tree
@@ -316,7 +340,6 @@ class FullTreeFile(GeohashTree):
         #export geojson at current hash level
         next_path = root_path+"/"+"".join(geohash)
         leaf_path = root_path+f"/{geohash}.geojson"
-        print(geohash,root_path,next_path,leaf_path)
         if trie_node.value:
             # Open a file in write mode
             self.features.iloc[trie_node.value].to_file(leaf_path, driver="GeoJSON")
@@ -347,14 +370,14 @@ class FullTreeFile(GeohashTree):
         results=[]
         excludes = [".ipynb_checkpoints"]
         # Get list of items in the directory
-        subfolders = [d for d in ipfs_list_folder(node) if ipfs_check_folder(os.path.join(node, d)) and d not in excludes]
+        subfolders = [d for d in self.fs.listdir(node) if self.fs.path_isdir(os.path.join(node, d)) and d not in excludes]
         # If there are subfolders, traverse them
         if subfolders:
             for subfolder in subfolders:
                 results.extend(self.traverse_sub_node(os.path.join(node, subfolder)))
         else:
             # Otherwise, process txt files in the directory
-            geo_features = [f for f in ipfs_list_folder(node) if f.endswith('.geojson')]
+            geo_features = [f for f in self.fs.listdir(node) if f.endswith('.geojson')]
             for f in geo_features:
                 results.extend(self.process_leaf_node(os.path.join(node, f)))
         return results
@@ -365,9 +388,9 @@ class FullTreeFile(GeohashTree):
         import os
         target_path = compose_path(geohash,index_cid)
         df_list = []
-        if ipfs_link_exists(target_path):
+        if self.fs.path_exists(target_path):
             df_list = self.traverse_sub_node(target_path)
-        if ipfs_link_exists(target_path+'.geojson'):
+        if self.fs.path_exists(target_path+'.geojson'):
             df_list = self.process_leaf_node(target_path+'.geojson')
         return df_list
     def query(self, geohashes,index_cid):
