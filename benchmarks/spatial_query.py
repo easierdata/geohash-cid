@@ -14,9 +14,9 @@ from geohashtree.filesystem import ipfs_get_index_folder,extract_and_concatenate
 
 #define dataset to query
 #local_index_path = "../data/test/offset_index_1m"
-local_index_path = "../data/test/offset_index_1m_gh_sorted"
+local_index_path = "../data/test/us_places_gh_sorted_d5"
 # cid = "bafybeiawrnzlzeuyzwkgoaugf5gh7jxuydzwqj5f4nvyigme5hdgndqp6e"
-index_cid = "bafybeifbqzmwyn6uyadg7yd4ansunrw6jargyk5fy4yohz5qijmnj5xwpq"
+index_cid = "bafybeiez5bwfmxmm2s36sx2rlzeasraxvao2h4swbrp4bft75d62ejv4su"
 #attached_cid="bafybeiftmh7tom3qxsw6rtqw5ntxtsasvowpxmxsmwedaze62rlkwjfliy"
 # #restaurants
 # local_index_path = "../data/test/offset_index_dc"
@@ -27,9 +27,9 @@ mode = 'online'
 mode = 'offline'
 #define query
 gdf_rand_points = gpd.read_file("../data/maryland_demo/rand_dc_point.geojson")
-radius = 0.01
+radius = 0.005
 centre = (gdf_rand_points.geometry.values[0].x,gdf_rand_points.geometry.values[0].y)
-precision = 4
+precision = 5
 result_hashes = geohashes_covering_circle(*centre,radius,precision)
 
 print(len(result_hashes),len(trim_hashes(result_hashes)))
