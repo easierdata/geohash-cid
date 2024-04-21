@@ -8,12 +8,12 @@ from .trie import Trie
 from .util import merge_dict,compose_path
 from .filesystem import *
 
-def append_geohash_to_dataframe(df):
+def append_geohash_to_dataframe(df,precision=4):
     """
     Append geohash to a dataframe
     """
     df = pd.concat([df,df.get_coordinates()],axis=1)
-    df['geohash'] = df.apply(lambda row: pgh.encode(row['y'], row['x'],precision=4), axis=1)
+    df['geohash'] = df.apply(lambda row: pgh.encode(row['y'], row['x'],precision), axis=1)
     return df
 
 def splitting_dataframe_to_files(df, target_directory,bucket_size = 1):
@@ -227,13 +227,13 @@ class LiteTreeOffset(GeohashTree):
         for ch in trie_node.children:
             child_hash = geohash+ch
             self.export_trie(trie_node.children[ch],child_hash,next_path)
-    def add_from_geojson(self, geojson):
+    def add_from_geojson(self, geojson,precision=4):
         # Implementation specific to Backend2
         offsets_lengths = self.calculate_offsets_and_lengths_stream(geojson)
         features = gpd.read_file(geojson)
         features['offlen'] = offsets_lengths
         self.head_offset_length = (0,offsets_lengths[0][0])
-        features = append_geohash_to_dataframe(features)
+        features = append_geohash_to_dataframe(features,precision)
         pairs = list(zip(features['geohash'],features['offlen']))
         # Create an empty Trie dictionary
         self.trie_dict = Trie()
