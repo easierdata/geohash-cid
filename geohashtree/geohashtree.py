@@ -1,19 +1,29 @@
 from abc import ABC, abstractmethod
 import geopandas as gpd
 import pandas as pd
-import pygeohash as pgh
 import ast
 import os
 from .trie import Trie
 from .util import merge_dict,compose_path
 from .filesystem import *
-
+from .geohash_func import geohash_encode,h3_encode,h3_to_h3tree
 def append_geohash_to_dataframe(df,precision=4):
     """
     Append geohash to a dataframe
     """
-    df = pd.concat([df,df.get_coordinates()],axis=1)
-    df['geohash'] = df.apply(lambda row: pgh.encode(row['y'], row['x'],precision), axis=1)
+    if 'x' not in df.columns:
+        df = pd.concat([df,df.get_coordinates()],axis=1)
+    df['geohash'] = df.apply(lambda row: geohash_encode(row['y'], row['x'],precision), axis=1)
+    return df
+
+def append_h3_to_dataframe(df,precision=8):
+    """
+    Append simplified geohash value from h3 to a dataframe
+    """
+    if 'x' not in df.columns:
+        df = pd.concat([df,df.get_coordinates()],axis=1)
+    df['h3'] = df.apply(lambda row: h3_encode(row['y'], row['x'],precision), axis=1)
+    df['geohash'] = df['h3'].map(lambda x: h3_to_h3tree(x))
     return df
 
 def splitting_dataframe_to_files(df, target_directory,bucket_size = 1):
@@ -147,8 +157,9 @@ class LiteTreeCID(GeohashTree):
         return ipfs_retrieval
     
 class LiteTreeOffset(GeohashTree):
-    def __init__(self,mode="offline"):
+    def __init__(self,mode="offline",grid='geohash'):
         self.mode = mode
+        self.grid = grid
         self.fs = InterPlanetaryFS() if mode == "online" else LocalFS()
         print(f"Index Mode: {mode}")
         self.offsets = []
@@ -233,7 +244,10 @@ class LiteTreeOffset(GeohashTree):
         features = gpd.read_file(geojson)
         features['offlen'] = offsets_lengths
         self.head_offset_length = (0,offsets_lengths[0][0])
-        features = append_geohash_to_dataframe(features,precision)
+        if self.grid == 'geohash':
+            features = append_geohash_to_dataframe(features,precision)
+        elif self.grid == 'h3':
+            features = append_h3_to_dataframe(features,precision)
         pairs = list(zip(features['geohash'],features['offlen']))
         # Create an empty Trie dictionary
         self.trie_dict = Trie()
@@ -309,7 +323,8 @@ class LiteTreeOffset(GeohashTree):
         results = []
         for cid in query_ret:
             offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
-            print(len(offset_list))
+            offset_list.sort(key=lambda x:x[0])
+            print(len(offset_list),offset_list[:5])
             self.offsets = offset_list
             geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
             results.append(gpd.read_file(geojson))

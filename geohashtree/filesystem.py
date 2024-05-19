@@ -9,7 +9,6 @@ from io import StringIO
 from geohashtree.config import ipfs_binary
 import requests
 import os
-print('ipfs path',ipfs_binary)
 
 
 
