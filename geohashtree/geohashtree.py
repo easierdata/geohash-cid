@@ -4,6 +4,7 @@ import pandas as pd
 import pygeohash as pgh
 import ast
 import os
+import io
 from .trie import Trie
 from .util import merge_dict,compose_path
 from .filesystem import *
@@ -308,13 +309,15 @@ class LiteTreeOffset(GeohashTree):
         t1 = time()
         results = []
         t_pd = 0
+        print('json file cid',query_ret.keys())
         for cid in query_ret:
             offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
-            print(len(offset_list))
+
             self.offsets = offset_list
             geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
             t21 = time()
-            results.append(gpd.read_file(geojson))
+            
+            results.append(gpd.read_file(io.StringIO(geojson)))
             t22 = time()
             t_pd+=t22-t21
         t2 = time()

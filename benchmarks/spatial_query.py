@@ -32,7 +32,7 @@ gdf_rand_points = gpd.read_file("../data/maryland_demo/rand_dc_point.geojson")
 
 
 rl = [x for x in range(4,60)]
-
+rl = [0.05,0.5]
 radius = 0.7
 centre = (gdf_rand_points.geometry.values[0].x,gdf_rand_points.geometry.values[0].y)
 precision = 4
