@@ -383,13 +383,18 @@ class LiteTreeOffset(GeohashTree):
         query_ret = self.query(geohashes,index_root)
         t1 = time()
         results = []
+        print(query_ret)
         for cid in query_ret:
             offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
             offset_list.sort(key=lambda x:x[0])
             print(len(offset_list),offset_list[:5])
             self.offsets = offset_list
+            
             geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
             results.append(gpd.read_file(geojson))
+        
+                
+            
         t2 = time()
         print(t1-t0,t2-t1)
         ret = pd.concat(results)

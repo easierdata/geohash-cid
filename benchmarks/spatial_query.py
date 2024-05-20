@@ -1,3 +1,35 @@
+
+
+import sys
+import logging
+
+class StreamToLogger(object):
+    """
+    Fake file-like stream object that redirects writes to a logger instance.
+    """
+    def __init__(self, logger, level):
+       self.logger = logger
+       self.level = level
+       self.linebuf = ''
+
+    def write(self, buf):
+       for line in buf.rstrip().splitlines():
+          self.logger.log(self.level, line.rstrip())
+
+    def flush(self):
+        pass
+
+logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+        filename='out.log',
+        filemode='a'
+        )
+log = logging.getLogger('foobar')
+# sys.stdout = StreamToLogger(log,logging.INFO)
+# sys.stderr = StreamToLogger(log,logging.ERROR)
+
+
 import pygeohash as pgh
 import geopandas as gpd
 import pandas as pd
@@ -28,7 +60,7 @@ from geohashtree.filesystem import ipfs_get_index_folder,extract_and_concatenate
 # mode = 'online'
 # mode = 'offline'
 #define query
-gdf_rand_points = gpd.read_file("../../data/maryland_demo/rand_dc_point.geojson")
+gdf_rand_points = gpd.read_file("../data/maryland_demo/rand_dc_point.geojson")
 
 centre = (gdf_rand_points.geometry.values[0].x,gdf_rand_points.geometry.values[0].y)
 
@@ -42,8 +74,8 @@ geohash_config = {
     'precision': 5,
     'radius': 0.05,
     'mode': 'offline',
-    'index_cid': "bafybeigoveu253bxkmz3qbhxjn6kqju5vrcqtjqm2wqrhtxtmaxck5g2ci",
-    'local_index_path': "../data/test/geohash_offset_dc_restaurants_gh_sorted/",
+    'index_cid': "bafybeiez5bwfmxmm2s36sx2rlzeasraxvao2h4swbrp4bft75d62ejv4su",
+    'local_index_path': "../data/test/us_places_gh_sorted_d5/",
     'radius_factor': 1,
 }
 parquet_config = {
@@ -51,8 +83,8 @@ parquet_config = {
     'precision': 4,
     'radius': 0.05,
     'mode': 'offline',
-    'index_cid': "bafybeihfj2qf7c4lqbwdle7e6vqclexrvc4xf3evaa77z43gu5tbtrj53e",
-    'local_index_path': "../data/test/geohash_cid_dc_parq/",
+    'index_cid': "bafybeib6s2z535bu5545xfeadklpbauy3hskjv53t72ktz5iluaioltnxq",
+    'local_index_path': "../data/test/us_places_cid_parq/",
     'radius_factor': 1,
 }
 # h3 config
@@ -62,7 +94,7 @@ h3_config = {
     'radius': 0.05,
     'mode': 'offline',
     'index_cid': "bafybeiakrsbotrovau2syhfeerthkwqpopytap3onydyvvppky6gvcqn54",
-    'local_index_path': "../data/test/geohash_offset_dc_restaurants_h3_sorted/",
+    'local_index_path': "../data/test/us_places_h3_sorted/",
     'radius_factor': 111*1000,
 }
 def run_query(config):
@@ -125,6 +157,7 @@ def detached(result_hashes,config):
             ipfs_get_index_folder(index_cid,local_index_path)
     else:
         local_index_path = index_cid
+    
     t1 = time.time()
     #tree.count(result_hashes,local_index_path)
     t2 = time.time()
@@ -173,4 +206,4 @@ def detached_parquet(result_hashes,config):
 if __name__ == "__main__":
     run_query(geohash_config)
     # run_query(h3_config)
-    run_query_parquet(parquet_config)
+    #run_query_parquet(parquet_config)

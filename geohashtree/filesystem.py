@@ -194,7 +194,7 @@ def ipfs_add_feature(geojson_path):
         result = subprocess.run([ipfs_binary, 'add', '-q', '--cid-version=1', geojson_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
 
 def ipfs_add_index_folder(index_path):
     """
@@ -207,7 +207,7 @@ def ipfs_add_index_folder(index_path):
         result = subprocess.run([ipfs_binary, 'add', '-Qr', '--cid-version=1', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
 def ipfs_list_folder(cid):
     """
     List the contents of an IPFS folder
@@ -219,7 +219,7 @@ def ipfs_list_folder(cid):
         result = subprocess.run([ipfs_binary, 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
         return [row.split(" ")[-1] for row in result.stdout.strip().split('\n')]   
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
 def ipfs_rpc_list_folder(cid):
     """
     List the contents of an IPFS folder
@@ -265,7 +265,7 @@ def ipfs_link_exists(cid):
     except subprocess.CalledProcessError as e:
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
         return False
 def ipfs_rpc_link_exists(cid):
     """
@@ -287,7 +287,7 @@ def ipfs_cat_file(cid):
         result = subprocess.run([ipfs_binary, 'cat', cid], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
         return None
 def ipfs_get_feature(cid):
     """
@@ -322,5 +322,5 @@ def ipfs_get_index_folder(cid,index_path):
         result = subprocess.run([ipfs_binary, 'get', cid, '-o', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
         return None
