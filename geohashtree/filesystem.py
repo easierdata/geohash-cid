@@ -298,7 +298,19 @@ def ipfs_get_feature(cid):
         return gpd.read_file(StringIO(content.decode()))
     else:
         return None
+def ipfs_get_parquet(cid):
+    """
+    Retrieve a parquet file from IPFS using its CID
+    """
+    import io
+    pq_bytes = kubo_rpc_cat(cid)
+    
+    if pq_bytes:
+        pq_file = io.BytesIO(pq_bytes)
 
+        return gpd.read_parquet(pq_file)
+    else:
+        return None
 def ipfs_get_index_folder(cid,index_path):
     """
     Retrieve an index folder from IPFS using its CID

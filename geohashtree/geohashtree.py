@@ -49,11 +49,25 @@ def splitting_dataframe_to_files(df, target_directory,bucket_size = 1):
 
             # Append file_path to list
             file_paths.append(file_path)
-
         # Create a new column in the original GeoDataFrame to store file paths
         df['single_path'] = file_paths
+        return df
+    elif bucket_size == -1:
+        geohashes = []
+        # group rows by `geohash` and save the group to a parquet file with the name of the geohash
+        for name, group in df.groupby('geohash'):
+            file_path = os.path.join(target_directory, f"{name}.parquet")
+            group.to_parquet(file_path)
+            geohashes.append(name)
+            file_paths.append(file_path)
+        #assign the file path to the original dataframe column `group_path`
+        
+        return pd.DataFrame({'geohash':geohashes,'parquet_path':file_paths})
 
-    return df
+
+        
+
+    
 class GeohashTree(ABC):
     @abstractmethod
     def add_from_geojson(self, geojson):
@@ -68,10 +82,35 @@ class GeohashTree(ABC):
         pass
 
 class LiteTreeCID(GeohashTree):
+    def __init__(self,mode="offline"):
+        self.mode = mode
+    def add_from_parquet(self, parquet, target_directory,precision=4):
+        """
+        prepare a geoparquet file to be indexed
+        """
+        self.file_format = 'parquet'
+        # Read the geoparquet file
+        features = gpd.read_parquet(parquet)
+        # calculate geohash
+        features = append_geohash_to_dataframe(features,precision)
+        # Split the GeoDataFrame into multiple parquet files by their geohash groups
+        pqs = splitting_dataframe_to_files(features, target_directory,bucket_size=-1)
+        # create dataframe with parquet paths
+        # calculate CID for each parquet file
+        pqs['cid'] = pqs.apply(lambda x: compute_cid(x['parquet_path']),axis=1)
+        pairs = list(zip(pqs['geohash'],pqs['cid']))
+        # Create an empty Trie dictionary
+        self.trie_dict = Trie()
+        # Insert each index-value pair into the Trie dictionary
+        for index, value in pairs:
+            self.trie_dict.insert(index, value)
+
+
     def add_from_geojson(self, geojson, target_directory):
         """
         Add a GeoJSON file to the index tree
         """
+        self.file_format = 'geojson'
         features = gpd.read_file(geojson)
         features = append_geohash_to_dataframe(features)
         features = splitting_dataframe_to_files(features, target_directory,bucket_size = 1)
@@ -103,6 +142,17 @@ class LiteTreeCID(GeohashTree):
     def generate_tree_index(self,destination_path):
         # Implementation specific to Backend2
         self.export_trie(self.trie_dict.root,"",destination_path)
+
+    def upload_parquet_files(self, target_directory):
+        """
+        Upload parquet files to IPFS
+        """
+        # Get a list of all parquet files in the target directory
+        files = [f for f in os.listdir(target_directory) if f.endswith('.parquet')]
+        # Upload each parquert file to IPFS
+        ipfs_add_feature([os.path.join(target_directory, file) for file in files])
+            
+    
     def process_leaf_node(self,leaf):
         """
         process index leaf.
@@ -153,7 +203,19 @@ class LiteTreeCID(GeohashTree):
         return results
     def retrieve(self,geohashes,index_root):
         results = self.query(geohashes,index_root)
-        ipfs_retrieval = pd.concat([ipfs_get_feature(cid) for cid in results])
+        #catch AttributeError error for file_format attribute
+        try:
+            print(self.file_format)
+        except AttributeError:
+            print('file_format not found')
+            return None
+        if self.file_format == 'geojson':
+            ipfs_retrieval = pd.concat([ipfs_get_feature(cid) for cid in results])
+        elif self.file_format == 'parquet':
+            ipfs_retrieval = pd.concat([ipfs_get_parquet(cid) for cid in results])
+        else:
+            
+            ipfs_retrieval = None
         return ipfs_retrieval
     
 class LiteTreeOffset(GeohashTree):
