@@ -49,10 +49,12 @@ from geohashtree.filesystem import ipfs_get_index_folder,extract_and_concatenate
 #define dataset to query
 #local_index_path = "../data/test/offset_index_1m"
 #local_index_path = "../data/test/us_places_gh_sorted_d5"
+
 #local_index_path = "../data/test/geohash_offset_dc_restaurants_h3_sorted/"
 # cid = "bafybeiawrnzlzeuyzwkgoaugf5gh7jxuydzwqj5f4nvyigme5hdgndqp6e"
 #index_cid = "bafybeiez5bwfmxmm2s36sx2rlzeasraxvao2h4swbrp4bft75d62ejv4su"
 #index_cid = "bafybeiakrsbotrovau2syhfeerthkwqpopytap3onydyvvppky6gvcqn54"
+
 #attached_cid="bafybeiftmh7tom3qxsw6rtqw5ntxtsasvowpxmxsmwedaze62rlkwjfliy"
 # #restaurants
 #local_index_path = "../data/test/offset_index_dc"
@@ -64,6 +66,7 @@ from geohashtree.filesystem import ipfs_get_index_folder,extract_and_concatenate
 #define query
 
 gdf_rand_points = gpd.read_file("../data/maryland_demo/rand_dc_point.geojson")
+
 
 centre = (gdf_rand_points.geometry.values[0].x,gdf_rand_points.geometry.values[0].y)
 
@@ -170,6 +173,7 @@ def query_hashes(config,centre_x,centre_y):
 
 
 def attached(result_hashes,config):
+
     tree = FullTreeFile()
     t0 = time.time()
     radius = config['radius']
@@ -185,12 +189,14 @@ def attached(result_hashes,config):
     print(f'retrieval: {t3-t2:.2f}s')
     return retr
 
+
 def detached(result_hashes,config):
     local_index_path = config['local_index_path']
     index_cid = config['index_cid']
     radius_grid = config['radius_factor']*config['radius']
     radius = config['radius']
     tree = LiteTreeOffset(mode=config['mode'])
+
     t0 = time.time()
     if tree.mode == 'offline':
         if not os.path.exists(local_index_path):
@@ -295,5 +301,5 @@ if __name__ == "__main__":
                     res.append((sel_prec,row['id'],r_m,qe,qt,qj,fetch,valid))
                     time.sleep(1)
             record_df = pd.DataFrame(res,columns=['prec','id','radius_meter','hash_time','query_time','join_time','fetched','valid'])
-
             record_df.to_csv(f"output/Jun4/perf_{file_format}_{sel_prec}_{r_m}_{datetime.now().strftime('%b_%d_%H_%M_%S')}.csv",index=False)
+
