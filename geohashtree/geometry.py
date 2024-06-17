@@ -3,8 +3,8 @@ def eculidean_distance(x1,y1,x2,y2):
     return math.sqrt((x2-x1)**2+(y2-y1)**2)
 
 def haversine_distance(lon1,lat1,lon2,lat2):
-    # Radius of the Earth in kilometers
-    R = 6371.0
+    # Radius of the Earth in meters
+    R = 6371000
     
     # Convert latitude and longitude from degrees to radians
     lat1_rad = math.radians(lat1)

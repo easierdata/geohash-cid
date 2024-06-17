@@ -81,6 +81,17 @@ def h3tree_covering_circle(xc,yc,radius,precision):
     h3list = list(map(h3_to_h3tree,[_x for _set in covering for _x in _set]))
     return h3list
 
+def geohash_to_bbox(geohash):
+    
+    min_lon, max_lon,min_lat,max_lat = bounding_box(geohash)
+    return Polygon([
+            (min_lon, min_lat),
+            (max_lon, min_lat),
+            (max_lon, max_lat),
+            (min_lon, max_lat),
+            (min_lon, min_lat)
+        ])
+
 def geohash_to_gdf(geohash):
 
     mid_lat,mid_lon,d_lat,d_lon = pgh.decode_exactly(geohash)
