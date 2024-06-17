@@ -15,6 +15,7 @@ py39
 
 #data
 data
+benchmarks/output
 
 # lock
 *.lock
