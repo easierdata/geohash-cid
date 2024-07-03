@@ -11,7 +11,12 @@ import requests
 import os
 import tqdm
 import json
-
+import pyarrow as pa
+import pyarrow.parquet as pq
+from shapely import wkb
+from parquet_tools.gen_py.parquet.ttypes import FileMetaData
+from thrift.protocol import TCompactProtocol
+from thrift.transport import TTransport
 class FileSystem(ABC):
     @abstractmethod
     def listdir(self, path):
@@ -135,6 +140,55 @@ def extract_and_concatenate(file_path, chunks, suffix_string = "]\n}"):
 def parallel_cat(params):
     cid, offset, length = params
     return kubo_rpc_cat_offset_length(cid, offset, length).decode().rstrip(',\n')
+
+def read_row_groups_from_ipfs(cid,chunks):
+
+    offset, length = chunks[0]
+    footer_bytes = kubo_rpc_cat_offset_length(cid, offset, length)
+    transportIn = TTransport.TMemoryBuffer(footer_bytes)
+    protocolIn = TCompactProtocol.TCompactProtocol(transportIn)
+    fmd = FileMetaData()
+    fmd.read(protocolIn)
+
+    unique_group_ids = list({group_id for group_id, _ in chunks[1:]})
+    modified_row_groups = [fmd.row_groups[rg_idx] for rg_idx in unique_group_ids]
+    dataframes = []
+    last_pos = 4
+    rg_buckets=[]
+    for rg in modified_row_groups:
+        rg_start_pos = rg.columns[0].meta_data.dictionary_page_offset
+        rg_end_pos = rg.columns[len(rg.columns)-1].file_offset
+        row_group_raw = kubo_rpc_cat_offset_length(cid, rg_start_pos, rg_end_pos - rg_start_pos)
+        rg_buckets.append(row_group_raw)
+        overhead_offset = rg_start_pos - last_pos
+        rg.file_offset -= overhead_offset
+        for i in range(len(rg.columns)):
+            rg.columns[i].file_offset -= overhead_offset
+            rg.columns[i].meta_data.data_page_offset -= overhead_offset
+            rg.columns[i].meta_data.dictionary_page_offset -= overhead_offset
+        last_pos += rg_end_pos - rg_start_pos
+    fmd.row_groups = modified_row_groups
+    row_group_all = b''.join(rg_buckets)
+    transport = TTransport.TMemoryBuffer()
+    protocolOut = TCompactProtocol.TCompactProtocol(transport)
+    fmd.write(protocolOut)
+    out_bytes = transport.getvalue()
+
+    PARQUET_MAGIC_BYTES = b'PAR1'
+    footer_length = len(out_bytes)
+
+    # Return the complete file bytes
+    return (
+        PARQUET_MAGIC_BYTES+
+        row_group_all +                # Row group bytes
+        out_bytes +                   # Footer bytes
+        footer_length.to_bytes(4, 'little') +  # Footer length in little endian
+        PARQUET_MAGIC_BYTES              # Parquet magic bytes
+    )
+
+
+
+
 def extract_and_concatenate_from_ipfs(cid, chunks, suffix_string = "]\n}"):
     concatenated_data = ""
     res = []

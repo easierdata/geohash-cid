@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 import geopandas as gpd
 import pandas as pd
+import pyarrow.parquet as pq
 import ast
 import os
 import io
+import struct
 from .trie import Trie
 from .util import merge_dict,compose_path
 from .filesystem import *
@@ -151,7 +153,7 @@ class LiteTreeCID(GeohashTree):
         """
         # Get a list of all parquet files in the target directory
         files = [f for f in os.listdir(target_directory) if f.endswith('.parquet')]
-        # Upload each parquert file to IPFS
+        # Upload each parquet file to IPFS
         ipfs_add_feature([os.path.join(target_directory, file) for file in files])
             
     
@@ -231,6 +233,19 @@ class LiteTreeOffset(GeohashTree):
         self.fs = InterPlanetaryFS() if mode == "online" else LocalFS()
         print(f"Index Mode: {mode}")
         self.offsets = []
+    def parquet_footer_offset_and_length(self,file_path):
+        file_size = os.path.getsize(file_path)
+        with open(file_path, 'rb') as f:
+            f.seek(file_size-8)
+            footer_length = struct.unpack('<I', f.read(4))[0]
+        return (file_size-footer_length - 8,footer_length)
+    
+    def calculate_row_group_index_offsets(self,file_path):
+        parquet_file = pq.ParquetFile(file_path)
+        row_group_size = parquet_file.metadata.row_group(0).num_rows
+        rows = parquet_file.metadata.num_rows
+        return [ (i // row_group_size, i % row_group_size) for i in range(rows)]
+
     def calculate_offsets_and_lengths_stream(self,geojson_file_path):
         def count_char_outside_quotes(line, char):
             count = 0
@@ -307,7 +322,10 @@ class LiteTreeOffset(GeohashTree):
             child_hash = geohash+ch
             self.export_trie(trie_node.children[ch],child_hash,next_path)
     def add_from_geojson(self, geojson,precision=4):
-        # Implementation specific to Backend2
+        '''
+        Partial retrieval for geojson with offset and length
+        '''
+        self.file_format = 'geojson'
         offsets_lengths = self.calculate_offsets_and_lengths_stream(geojson)
         features = gpd.read_file(geojson)
         features['offlen'] = offsets_lengths
@@ -323,6 +341,30 @@ class LiteTreeOffset(GeohashTree):
         for index, value in pairs:
             self.trie_dict.insert(index, value)
         self.CID = compute_cid(geojson)
+
+    def add_from_parquet(self, parquet_path,precision=4):
+        '''
+        Partial retrieval for geojson by reading one row group 
+        '''
+        self.file_format = 'parquet'
+        self.head_offset_length = self.parquet_footer_offset_and_length(parquet_path)
+        print('footer',self.head_offset_length)
+        row_group_offsets = self.calculate_row_group_index_offsets(parquet_path)
+        features = gpd.read_parquet(parquet_path)
+        features['offlen'] = row_group_offsets
+        
+        
+        if self.grid == 'geohash':
+            features = append_geohash_to_dataframe(features,precision)
+        elif self.grid == 'h3':
+            features = append_h3_to_dataframe(features,precision)
+        pairs = list(zip(features['geohash'],features['offlen']))
+        # Create an empty Trie dictionary
+        self.trie_dict = Trie()
+        # Insert each index-value pair into the Trie dictionary
+        for index, value in pairs:
+            self.trie_dict.insert(index, value)
+        self.CID = compute_cid(parquet_path)
 
     def generate_tree_index(self,destination_path):
         # Implementation specific to Backend2
@@ -392,14 +434,24 @@ class LiteTreeOffset(GeohashTree):
         t_pd = 0
         print('json file cid',query_ret.keys())
         for cid in query_ret:
-            offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
-            offset_list.sort(key=lambda x:x[0])
-            self.offsets = offset_list
-            geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
-            t21 = time()
             
-            results.append(gpd.read_file(io.StringIO(geojson)))
-            t22 = time()
+            offset_list = [ast.literal_eval(str_tuple) for str_tuple in query_ret[cid]]
+            self.offsets = offset_list
+            if self.file_format == "geojson":
+                offset_list.sort(key=lambda x:x[0])
+                
+                geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
+                t21 = time()
+                gdf = gpd.read_file(io.StringIO(geojson))
+                t22 = time()
+            elif self.file_format == "parquet":
+                parquet_bytes = read_row_groups_from_ipfs(cid,offset_list)
+                t21 = time()
+                gdf = gpd.read_parquet(io.BytesIO(parquet_bytes))
+                t22 = time()
+            results.append(gdf)
+
+            
             t_pd+=t22-t21
         t2 = time()
         print(t1-t0,t2-t1-t_pd,t_pd)
