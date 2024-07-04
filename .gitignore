@@ -12,6 +12,7 @@ __pycache__/
 venv/
 .venv
 py39
+clean39
 
 #data
 data
