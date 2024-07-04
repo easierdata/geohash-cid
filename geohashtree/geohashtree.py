@@ -3,6 +3,7 @@ import geopandas as gpd
 import pandas as pd
 import ast
 import os
+import io
 from .trie import Trie
 from .util import merge_dict,compose_path
 from .filesystem import *
@@ -95,6 +96,7 @@ class LiteTreeCID(GeohashTree):
         features = append_geohash_to_dataframe(features,precision)
         # Split the GeoDataFrame into multiple parquet files by their geohash groups
         pqs = splitting_dataframe_to_files(features, target_directory,bucket_size=-1)
+        print(pqs.head())
         # create dataframe with parquet paths
         # calculate CID for each parquet file
         pqs['cid'] = pqs.apply(lambda x: compute_cid(x['parquet_path']),axis=1)
@@ -202,7 +204,11 @@ class LiteTreeCID(GeohashTree):
                 results.extend(query)
         return results
     def retrieve(self,geohashes,index_root):
+        
         results = self.query(geohashes,index_root)
+        #print('ret started',results)
+        if len(results)<1:
+            return None
         #catch AttributeError error for file_format attribute
         try:
             print(self.file_format)
@@ -383,15 +389,20 @@ class LiteTreeOffset(GeohashTree):
         query_ret = self.query(geohashes,index_root)
         t1 = time()
         results = []
+        t_pd = 0
+        print('json file cid',query_ret.keys())
         for cid in query_ret:
             offset_list = [ast.literal_eval(str_tuple) for str_tuple in sorted(query_ret[cid])]
             offset_list.sort(key=lambda x:x[0])
-            print(len(offset_list),offset_list[:5])
             self.offsets = offset_list
             geojson = extract_and_concatenate_from_ipfs(cid, offset_list, suffix_string = "]\n}")
-            results.append(gpd.read_file(geojson))
+            t21 = time()
+            
+            results.append(gpd.read_file(io.StringIO(geojson)))
+            t22 = time()
+            t_pd+=t22-t21
         t2 = time()
-        print(t1-t0,t2-t1)
+        print(t1-t0,t2-t1-t_pd,t_pd)
         ret = pd.concat(results)
         return ret
         

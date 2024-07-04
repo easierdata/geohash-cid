@@ -9,8 +9,8 @@ from io import StringIO
 from geohashtree.config import ipfs_binary
 import requests
 import os
-
-
+import tqdm
+import json
 
 class FileSystem(ABC):
     @abstractmethod
@@ -170,9 +170,21 @@ def write_raw_json_to_file(geojson, file_path):
         file.write(geojson)
 
 
-
-
 def compute_cid(file_path):
+    """
+    Compute the CID for a file
+    """
+
+    url = "http://127.0.0.1:5001/api/v0/add"
+    # Make the POST request
+    with open(file_path, mode='rb') as f:
+        r = requests.post(url='http://127.0.0.1:5001/api/v0/add?cid-version=1&only-hash=True',
+                          files={file_path: f})
+    
+    cid = json.loads(r.content)['Hash']
+    return cid
+
+def compute_cid_old(file_path):
     """
     Compute the CID for a file
     """
@@ -182,6 +194,21 @@ def compute_cid(file_path):
     print(cid)
     return cid
 def ipfs_add_feature(geojson_path):
+    try:
+        if isinstance(geojson_path, list):
+            result_list = []
+            for geojson in tqdm.tqdm(geojson_path):
+                result_list.append(ipfs_add_feature(geojson))
+            return result_list
+        # Use IPFS add command to add the file to IPFS
+        with open(geojson_path, mode='rb') as f:
+            r = requests.post(url='http://127.0.0.1:5001/api/v0/add?cid-version=1&quiet=True',
+                            files={geojson_path: f})
+        
+        return r.content
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+def ipfs_add_feature_old(geojson_path):
     """
     Add a GeoJSON feature to IPFS
     """
@@ -189,12 +216,15 @@ def ipfs_add_feature(geojson_path):
         raise Exception("IPFS is not ready")
     try:
         if isinstance(geojson_path, list):
-            return [ipfs_add_feature(geojson) for geojson in geojson_path]
+            result_list = []
+            for geojson in tqdm.tqdm(geojson_path):
+                result_list.append(ipfs_add_feature(geojson))
+            return result_list
         # Use IPFS add command to add the file to IPFS
         result = subprocess.run([ipfs_binary, 'add', '-q', '--cid-version=1', geojson_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
 
 def ipfs_add_index_folder(index_path):
     """
@@ -207,7 +237,7 @@ def ipfs_add_index_folder(index_path):
         result = subprocess.run([ipfs_binary, 'add', '-Qr', '--cid-version=1', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout.strip()
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
 def ipfs_list_folder(cid):
     """
     List the contents of an IPFS folder
@@ -219,7 +249,7 @@ def ipfs_list_folder(cid):
         result = subprocess.run([ipfs_binary, 'ls', cid], stdout=subprocess.PIPE, check=True, text=True)
         return [row.split(" ")[-1] for row in result.stdout.strip().split('\n')]   
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
 def ipfs_rpc_list_folder(cid):
     """
     List the contents of an IPFS folder
@@ -265,7 +295,7 @@ def ipfs_link_exists(cid):
     except subprocess.CalledProcessError as e:
         return False
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
         return False
 def ipfs_rpc_link_exists(cid):
     """
@@ -287,7 +317,7 @@ def ipfs_cat_file(cid):
         result = subprocess.run([ipfs_binary, 'cat', cid], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
         return None
 def ipfs_get_feature(cid):
     """
@@ -322,5 +352,5 @@ def ipfs_get_index_folder(cid,index_path):
         result = subprocess.run([ipfs_binary, 'get', cid, '-o', index_path], stdout=subprocess.PIPE, check=True, text=True)
         return result.stdout
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"An unexpected error occurred: {e[:100]}")
         return None
