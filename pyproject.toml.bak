@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "geohash-cid"
+name = "geohashtree"
 version = "0.1.0"
 description = "toolkit for spatial indexing in IPFS"
 authors = ["Zheng Liu <zliu1208@umd.edu>"]

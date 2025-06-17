@@ -1,0 +1,8 @@
+-e .
+
+# --- Other development-specific dependencies ---
+# Add any tools you need for testing, linting, or building docs
+pytest>=7.0.0
+pytest-benchmark
+black
+geopandas
