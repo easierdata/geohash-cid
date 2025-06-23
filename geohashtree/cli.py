@@ -1,6 +1,8 @@
 import argparse
 import sys
 
+from geohashtree.geohashtree import LiteTreeOffset, LiteTreeCID
+from geohashtree.filesystem import ipfs_add_feature,ipfs_add_index_folder,kubo_rpc_cat_offset_length
 def handle_create(args):
     """
     Placeholder function to handle the 'create' command.
@@ -9,11 +11,29 @@ def handle_create(args):
     print("Executing 'create' command...")
     print(f"  Input file/path: {args.input_path}")
     print(f"  Output folder: {args.output_folder}")
-    # --- Your index creation logic goes here ---
-    # 1. Read points from args.input_path.
-    # 2. Create a GeohashTree instance.
-    # 3. Add points to the tree.
-    # 4. Save the tree index to args.output_folder.
+    print(f"  Method: {args.method}")
+    print(f"  File format: {args.format}")
+    print(f"  Level: {args.level}")
+    if args.method == "prepartition":
+        print("  Using prepartition method for indexing.")
+        geohashtree = LiteTreeCID()
+    elif args.method == "offset":
+        print("  Using offset method for indexing.")
+        geohashtree = LiteTreeOffset()
+    else:
+        print(f"  Error: Unsupported method '{args.method}'. Use 'prepartition' or 'offset'.")
+        sys.exit(1)
+    
+    if args.format not in ["parquet", "geojson"]:
+        print(f"  Error: Unsupported format '{args.format}'. Use 'parquet' or 'geojson'.")
+        sys.exit(1)
+    geohashtree.file_format = args.format
+    geohashtree.calculate_index_from_file(
+        args.input_path,
+        args.output_folder,
+        args.level
+    )
+    geohashtree.generate_tree_index(args.output_folder)
     print("\nSuccessfully created geohashtree index (simulation).")
 
 
@@ -27,10 +47,13 @@ def handle_copy(args):
     print(f"  Destination: {args.destination}")
     if args.ipfs:
         print("  Mode: Upload to IPFS")
+        added_cid = ipfs_add_index_folder(args.source)
+        print(f"  Successfully uploaded index to IPFS with CID: {added_cid}")
         # --- Your IPFS upload logic goes here ---
     else:
         print("  Mode: Copy to local directory")
-        # --- Your local copy logic goes here (e.g., using shutil) ---
+        # recursively copy the index folder to the destination
+        raise NotImplementedError
     print("\nSuccessfully copied index (simulation).")
 
 
@@ -76,6 +99,9 @@ def main():
     parser_create = subparsers.add_parser("create", help="Create a new geohashtree index from a file.")
     parser_create.add_argument("input_path", type=str, help="Path to the input file (e.g., a CSV or GeoJSON).")
     parser_create.add_argument("output_folder", type=str, help="Path to the folder where the index will be saved.")
+    parser_create.add_argument("--method", type=str, default="prepartition", choices=["prepartition","offset"], help="Indexing method to use (default: 'prepartition').")
+    parser_create.add_argument("--format", type=str, default="csv", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
+    parser_create.add_argument("--level", type=int, default=5, help="Geohash level/precision (default: 5).")
     parser_create.set_defaults(func=handle_create)
 
     # --- Create Parser for the "copy" command ---

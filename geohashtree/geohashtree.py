@@ -72,8 +72,9 @@ def splitting_dataframe_to_files(df, target_directory,bucket_size = 1):
 
     
 class GeohashTree(ABC):
+
     @abstractmethod
-    def add_from_geojson(self, geojson):
+    def calculate_index_from_file(self, file_path, target_directory, precision):
         pass
 
     @abstractmethod
@@ -87,7 +88,16 @@ class GeohashTree(ABC):
 class LiteTreeCID(GeohashTree):
     def __init__(self,mode="offline"):
         self.mode = mode
-    def add_from_parquet(self, parquet, target_directory,precision=4):
+
+    def calculate_index_from_file(self, file_path, target_directory, precision):
+        if self.file_format == 'geojson':
+            self.add_from_geojson(file_path, target_directory, precision)
+        elif self.file_format == 'parquet':
+            self.add_from_parquet(file_path, target_directory, precision)
+        else:
+            raise ValueError("Unsupported file format. Use 'geojson' or 'parquet'.")
+
+    def add_from_parquet(self, parquet, target_directory, precision=4):
         """
         prepare a geoparquet file to be indexed
         """
@@ -110,13 +120,13 @@ class LiteTreeCID(GeohashTree):
             self.trie_dict.insert(index, value)
 
 
-    def add_from_geojson(self, geojson, target_directory):
+    def add_from_geojson(self, geojson, target_directory,precision=4):
         """
         Add a GeoJSON file to the index tree
         """
         self.file_format = 'geojson'
         features = gpd.read_file(geojson)
-        features = append_geohash_to_dataframe(features)
+        features = append_geohash_to_dataframe(features,precision)
         features = splitting_dataframe_to_files(features, target_directory,bucket_size = 1)
         features['single_cid'] = features.apply(lambda x: compute_cid(x['single_path']),axis=1)
         pairs = list(zip(features['geohash'],features['single_cid']))
@@ -365,6 +375,14 @@ class LiteTreeOffset(GeohashTree):
         for index, value in pairs:
             self.trie_dict.insert(index, value)
         self.CID = compute_cid(parquet_path)
+    
+    def calculate_index_from_file(self, file_path, target_directory, precision):
+        if self.file_format == 'geojson':
+            self.add_from_geojson(file_path, target_directory, precision)
+        elif self.file_format == 'parquet':
+            self.add_from_parquet(file_path, target_directory, precision)
+        else:
+            raise ValueError("Unsupported file format. Use 'geojson' or 'parquet'.")
 
     def generate_tree_index(self,destination_path):
         # Implementation specific to Backend2
