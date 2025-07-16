@@ -65,10 +65,10 @@ from geohashtree.filesystem import ipfs_get_index_folder,extract_and_concatenate
 # mode = 'offline'
 #define query
 
-gdf_rand_points = gpd.read_file("../data/maryland_demo/rand_dc_point.geojson")
+# gdf_rand_points = gpd.read_file("./data/maryland_demo/rand_dc_point.geojson")
 
 
-centre = (gdf_rand_points.geometry.values[0].x,gdf_rand_points.geometry.values[0].y)
+# centre = (gdf_rand_points.geometry.values[0].x,gdf_rand_points.geometry.values[0].y)
 
 # precision = 5
 # result_hashes = geohashes_covering_circle(*centre,radius,precision)
@@ -252,7 +252,7 @@ if __name__ == "__main__":
 
     #centre = (-119.1771,34.1975)
     file_format = sys.argv[1]
-    r100 = gpd.read_file('../assets/us_100_random.geojson')
+    r100 = gpd.read_file('./assets/us_100_random.geojson')
     repeat = 3
     
     # radius_meters=[100,150,200,250,300,350,400,450,500,550,600,800,1000,

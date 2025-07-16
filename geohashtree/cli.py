@@ -66,6 +66,20 @@ def handle_get(args):
     print(f"  Loading index from: {args.index_path}")
     # --- Your index loading logic goes here ---
     # tree = GeohashTree.load(args.index_path)
+    if args.method == "prepartition":
+        print("  Using prepartition method for indexing.")
+        geohashtree = LiteTreeCID()
+    elif args.method == "offset":
+        print("  Using offset method for indexing.")
+        geohashtree = LiteTreeOffset()
+    else:
+        print(f"  Error: Unsupported method '{args.method}'. Use 'prepartition' or 'offset'.")
+        sys.exit(1)
+    if args.ipfs:
+        mode = "online"
+    else:
+        mode = "offline"
+    print(f"  Mode: {mode}")
 
     if args.geohashes:
         print(f"  Querying by geohashes: {args.geohashes}")
@@ -108,13 +122,17 @@ def main():
     parser_copy = subparsers.add_parser("copy", help="Copy an index to a new location or upload to IPFS.")
     parser_copy.add_argument("source", type=str, help="Path to the source index folder.")
     parser_copy.add_argument("destination", type=str, help="Path to the destination folder or IPFS identifier.")
-    parser_copy.add_argument("--ipfs", action="store_true", help="Flag to indicate the destination is IPFS.")
+    parser_copy.add_argument("--to_ipfs", action="store_true", help="Flag to indicate the destination is IPFS.")
+    parser_copy.add_argument("--from_ipfs", action="store_true", help="Flag to indicate the source is from IPFS.")
     parser_copy.set_defaults(func=handle_copy)
 
     # --- Create Parser for the "get" command ---
     parser_get = subparsers.add_parser("get", help="Get features from a geohashtree index.")
     parser_get.add_argument("index_path", type=str, help="Path to the geohashtree index folder.")
-    
+    parser_get.add_argument("--method", type=str, default="prepartition", choices=["prepartition","offset"], help="Indexing method to use (default: 'prepartition').")
+    parser_get.add_argument("--format", type=str, default="csv", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
+    parser_get.add_argument("--ipfs", action="store_true", help="Flag to indicate the index is stored on IPFS.")
+    parser_get.add_argument("--kubo_rpc", type=str, default="http://localhost:5001", help="Kubo RPC endpoint for IPFS (default: http://localhost:5001).")
     # A mutually exclusive group ensures only one type of query can be run at a time.
     query_group = parser_get.add_mutually_exclusive_group(required=True)
     query_group.add_argument("--geohashes", nargs='+', metavar="G", type=str, help="One or more geohashes to query.")

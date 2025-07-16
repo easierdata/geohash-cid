@@ -51,6 +51,13 @@ setuptools.setup(
     install_requires=[
         "pygeohash @ git+https://github.com/wdm0006/pygeohash.git", # Geohash library for Python
         "argparse", # For parsing command-line arguments
+        "geopandas", # For handling geospatial data
+        "parquet-tools", # For reading and writing Parquet files
+        "psycopg2-binary", # PostgreSQL adapter for Python
+        "jupyter", # For Jupyter notebook support
+        "leafmap", # For interactive maps
+        "tqdm", # For progress bars
+        "h3", # H3 geospatial indexing library
     ],
 
     # This section defines the command-line script.
