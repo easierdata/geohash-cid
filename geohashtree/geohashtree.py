@@ -331,7 +331,7 @@ class LiteTreeOffset(GeohashTree):
         for ch in trie_node.children:
             child_hash = geohash+ch
             self.export_trie(trie_node.children[ch],child_hash,next_path)
-    def add_from_geojson(self, geojson,precision=4):
+    def add_from_geojson(self, geojson, _, precision=4):
         '''
         Partial retrieval for geojson with offset and length
         '''
@@ -352,7 +352,7 @@ class LiteTreeOffset(GeohashTree):
             self.trie_dict.insert(index, value)
         self.CID = compute_cid(geojson)
 
-    def add_from_parquet(self, parquet_path,precision=4):
+    def add_from_parquet(self, parquet_path, _, precision=4):
         '''
         Partial retrieval for geojson by reading one row group 
         '''

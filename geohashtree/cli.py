@@ -1,8 +1,9 @@
 import argparse
+import os
 import sys
 
 from geohashtree.geohashtree import LiteTreeOffset, LiteTreeCID
-from geohashtree.filesystem import ipfs_add_feature,ipfs_add_index_folder,kubo_rpc_cat_offset_length
+from geohashtree.filesystem import ipfs_add_feature,ipfs_add_index_folder,kubo_rpc_cat_offset_length, ipfs_get_index_folder
 def handle_create(args):
     """
     Placeholder function to handle the 'create' command.
@@ -45,16 +46,41 @@ def handle_copy(args):
     print("Executing 'copy' command...")
     print(f"  Source index folder: {args.source}")
     print(f"  Destination: {args.destination}")
-    if args.ipfs:
-        print("  Mode: Upload to IPFS")
-        added_cid = ipfs_add_index_folder(args.source)
-        print(f"  Successfully uploaded index to IPFS with CID: {added_cid}")
-        # --- Your IPFS upload logic goes here ---
+    if args.to_ipfs:
+        if not args.source:
+            print("  Error: --to_ipfs requires a source path.")
+            sys.exit(1)
+        if os.path.isfile(args.source):
+            ext = os.path.splitext(args.source)[1].lower()
+            if ext in [".geojson", ".parquet"]:
+                print(f"  Detected file type: {ext}. Uploading as feature to IPFS...")
+                added_cid = ipfs_add_feature(args.source)
+                print(f"  Successfully uploaded feature to IPFS with CID: {added_cid}")
+            else:
+                print(f"  Error: Unsupported file type '{ext}'. Only .geojson or .parquet are supported for feature upload.")
+                sys.exit(1)
+        elif os.path.isdir(args.source):
+            print("  Detected folder. Uploading index folder to IPFS...")
+            added_cid = ipfs_add_index_folder(args.source)
+            print(f"  Successfully uploaded index folder to IPFS with CID: {added_cid}")
+        else:
+            print("  Error: Source path does not exist.")
+            sys.exit(1)
+    elif args.from_ipfs:
+        if not args.destination:
+            print("  Error: --from_ipfs requires a destination path.")
+            sys.exit(1)
+        print("  Downloading from IPFS to local destination (not implemented).")
+        # Implement IPFS download logic here
+        raise NotImplementedError
     else:
+        if not args.source or not args.destination:
+            print("  Error: Both source and destination are required unless --to_ipfs or --from_ipfs is specified.")
+            sys.exit(1)
         print("  Mode: Copy to local directory")
         # recursively copy the index folder to the destination
         raise NotImplementedError
-    print("\nSuccessfully copied index (simulation).")
+    print("\nSuccessfully copied index .")
 
 
 def handle_get(args):
@@ -63,26 +89,39 @@ def handle_get(args):
     This is where you would load the index and query for features.
     """
     print("Executing 'get' command...")
+    if args.ipfs:
+        mode = "online"
+    else:
+        mode = "offline"
+        if not os.path.exists(args.index_path):
+            print(f'no local index found! caching {args.index_cid} to',args.index_path)
+            ipfs_get_index_folder(args.index_cid,args.index_path)
+    print(f"  Mode: {mode}")
     print(f"  Loading index from: {args.index_path}")
     # --- Your index loading logic goes here ---
     # tree = GeohashTree.load(args.index_path)
     if args.method == "prepartition":
         print("  Using prepartition method for indexing.")
-        geohashtree = LiteTreeCID()
+        geohashtree = LiteTreeCID(mode=mode)
     elif args.method == "offset":
         print("  Using offset method for indexing.")
-        geohashtree = LiteTreeOffset()
+        geohashtree = LiteTreeOffset(mode=mode)
     else:
         print(f"  Error: Unsupported method '{args.method}'. Use 'prepartition' or 'offset'.")
         sys.exit(1)
-    if args.ipfs:
-        mode = "online"
-    else:
-        mode = "offline"
-    print(f"  Mode: {mode}")
+    if args.format not in ["parquet", "geojson"]:
+        print(f"  Error: Unsupported format '{args.format}'. Use 'parquet' or 'geojson'.")
+        sys.exit(1)
+    geohashtree.file_format = args.format
+    
 
     if args.geohashes:
         print(f"  Querying by geohashes: {args.geohashes}")
+        retr = geohashtree.retrieve(args.geohashes,args.index_path)
+        print('IPFS return size',retr.shape)
+        print("  Features found:")
+        for feature in retr.head(5).to_dict(orient='records'):
+            print(f"    - {feature}")
         # --- Logic to find data by a list of geohashes ---
     elif args.bbox:
         print(f"  Querying by bounding box: {args.bbox}")
@@ -111,17 +150,17 @@ def main():
 
     # --- Create Parser for the "create" command ---
     parser_create = subparsers.add_parser("create", help="Create a new geohashtree index from a file.")
-    parser_create.add_argument("input_path", type=str, help="Path to the input file (e.g., a CSV or GeoJSON).")
+    parser_create.add_argument("input_path", type=str, help="Path to the input file (e.g., a parquet or GeoJSON).")
     parser_create.add_argument("output_folder", type=str, help="Path to the folder where the index will be saved.")
     parser_create.add_argument("--method", type=str, default="prepartition", choices=["prepartition","offset"], help="Indexing method to use (default: 'prepartition').")
-    parser_create.add_argument("--format", type=str, default="csv", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
+    parser_create.add_argument("--format", type=str, default="geojson", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
     parser_create.add_argument("--level", type=int, default=5, help="Geohash level/precision (default: 5).")
     parser_create.set_defaults(func=handle_create)
 
     # --- Create Parser for the "copy" command ---
     parser_copy = subparsers.add_parser("copy", help="Copy an index to a new location or upload to IPFS.")
-    parser_copy.add_argument("source", type=str, help="Path to the source index folder.")
-    parser_copy.add_argument("destination", type=str, help="Path to the destination folder or IPFS identifier.")
+    parser_copy.add_argument("source", type=str, nargs="?", help="Path to the source index folder.")
+    parser_copy.add_argument("destination", type=str, nargs="?", help="Path to the destination folder or IPFS identifier.")
     parser_copy.add_argument("--to_ipfs", action="store_true", help="Flag to indicate the destination is IPFS.")
     parser_copy.add_argument("--from_ipfs", action="store_true", help="Flag to indicate the source is from IPFS.")
     parser_copy.set_defaults(func=handle_copy)
@@ -129,8 +168,9 @@ def main():
     # --- Create Parser for the "get" command ---
     parser_get = subparsers.add_parser("get", help="Get features from a geohashtree index.")
     parser_get.add_argument("index_path", type=str, help="Path to the geohashtree index folder.")
+    parser_get.add_argument("index_cid", type=str, help="Path to the geohashtree index folder.")
     parser_get.add_argument("--method", type=str, default="prepartition", choices=["prepartition","offset"], help="Indexing method to use (default: 'prepartition').")
-    parser_get.add_argument("--format", type=str, default="csv", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
+    parser_get.add_argument("--format", type=str, default="geojson", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
     parser_get.add_argument("--ipfs", action="store_true", help="Flag to indicate the index is stored on IPFS.")
     parser_get.add_argument("--kubo_rpc", type=str, default="http://localhost:5001", help="Kubo RPC endpoint for IPFS (default: http://localhost:5001).")
     # A mutually exclusive group ensures only one type of query can be run at a time.
