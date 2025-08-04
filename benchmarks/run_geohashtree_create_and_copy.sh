@@ -10,3 +10,4 @@ time python -m geohashtree.cli create ./data/overture/us_places.geojson ./data/g
   --level=3
 
 time python -m geohashtree.cli copy ./data/overture/us_places.geojson --to_ipfs
+time python -m geohashtree.cli copy ./data/geohashtree/ --to_ipfs
