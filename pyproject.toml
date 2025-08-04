@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Uncomment the following lines if using Poetry for build management
+# Make sure to comment out the [build-system] section above!
+# [build-system]
+# requires = ["poetry-core"]
+# build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "geohashtree"
+version = "0.1.0"
+description = "A Python library for spatial indexing and querying with Geohash trees."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Zheng Liu", email = "zliu1208@umd.edu"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+dependencies = [
+    "pygeohash @ git+https://github.com/wdm0006/pygeohash.git",
+    "geopandas",
+    "parquet-tools",
+    "psycopg2-binary",
+    "jupyter",
+    "leafmap",
+    "tqdm",
+    "h3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-benchmark",
+    "black",
+]
+
+[project.scripts]
+geohashtree = "geohashtree.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/easierdata/geohash-cid/"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["geohashtree*"]
