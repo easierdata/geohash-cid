@@ -4,6 +4,8 @@ import h3
 from shapely.geometry import Polygon
 from geohashtree.geometry import rect_outside_a_circle, rect_overlap
 
+APPROX_LAT_TO_METER = 111100
+
 def geohash_encode(lat,lon,precision):
     return pgh.encode(latitude=lat, longitude=lon, precision=precision)
 

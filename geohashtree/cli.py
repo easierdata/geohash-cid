@@ -3,7 +3,9 @@ import os
 import sys
 
 from geohashtree.geohashtree import LiteTreeOffset, LiteTreeCID
+from geohashtree.geohash_func import geohashes_covering_circle, geohashes_covering_rectangle, APPROX_LAT_TO_METER
 from geohashtree.filesystem import ipfs_add_feature,ipfs_add_index_folder,kubo_rpc_cat_offset_length, ipfs_get_index_folder
+from geohashtree.trie import trim_hashes
 def handle_create(args):
     """
     Placeholder function to handle the 'create' command.
@@ -114,14 +116,9 @@ def handle_get(args):
         sys.exit(1)
     geohashtree.file_format = args.format
     
-
+    target_geohashes = []
     if args.geohashes:
-        print(f"  Querying by geohashes: {args.geohashes}")
-        retr = geohashtree.retrieve(args.geohashes,args.index_path)
-        print('IPFS return size',retr.shape)
-        print("  Features found:")
-        for feature in retr.head(5).to_dict(orient='records'):
-            print(f"    - {feature}")
+        target_geohashes.extend(args.geohashes)
         # --- Logic to find data by a list of geohashes ---
     elif args.bbox:
         print(f"  Querying by bounding box: {args.bbox}")
@@ -130,11 +127,23 @@ def handle_get(args):
         print(f"  Querying by radius:")
         print(f"    Center: ({args.radius[0]}, {args.radius[1]})")
         print(f"    Radius: {args.radius[2]} km")
+        radius_km = args.radius[2]
+        centre_x = args.radius[1]
+        centre_y = args.radius[0]
+        radius_dg = radius_km * 1000 / APPROX_LAT_TO_METER   # Convert km to
+        geohashes = geohashes_covering_circle(centre_x,centre_y,radius_dg,precision=args.level)
+        geohashes = trim_hashes(geohashes)
+        target_geohashes.extend(geohashes)
         # --- Logic to find neighbors within a radius ---
     else:
         print("  Error: No query type specified. Use --geohashes, --bbox, or --radius.")
         sys.exit(1)
-    
+    print(f"  Querying by geohashes: {target_geohashes}")
+    retr = geohashtree.retrieve(target_geohashes,args.index_path)
+    print('IPFS return size',retr.shape)
+    print("  Features found:")
+    for feature in retr.head(5).to_dict(orient='records'):
+        print(f"    - {feature}")
     print("\nSuccessfully retrieved features (simulation).")
 
 
@@ -171,6 +180,8 @@ def main():
     parser_get.add_argument("index_cid", type=str, help="Path to the geohashtree index folder.")
     parser_get.add_argument("--method", type=str, default="prepartition", choices=["prepartition","offset"], help="Indexing method to use (default: 'prepartition').")
     parser_get.add_argument("--format", type=str, default="geojson", choices=["parquet", "geojson"], help="Input file format (parquet or geojson).")
+    parser_get.add_argument("--level", type=int, default=5, help="Geohash level/precision (default: 5).")
+
     parser_get.add_argument("--ipfs", action="store_true", help="Flag to indicate the index is stored on IPFS.")
     parser_get.add_argument("--kubo_rpc", type=str, default="http://localhost:5001", help="Kubo RPC endpoint for IPFS (default: http://localhost:5001).")
     # A mutually exclusive group ensures only one type of query can be run at a time.
